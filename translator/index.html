@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Translator</title>
+
+    <!-- Add Bootstrap CSS from CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Custom styles -->
+    <style>
+        /* Style for dt elements inside dl */
+        dl dt {
+            background-color: #add8e6; /* Pastel blue background */
+            border: 1px solid #d3d3d3; /* Light grey border */
+            padding: 0.5rem; /* Optional: Adds some padding inside the dt element */
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <!-- Top Section with Input Box and Button -->
+        <div class="row px-4 pt-4">
+            <div class="input-group mb-3">
+                <input type="text" class="form-control" placeholder="Enter HGVS variant" v-model="inputVariant"
+                    aria-label="Enter HGVS variant" aria-describedby="button-addon2">
+                <button class="btn btn-outline-secondary" type="button" id="button-addon2" @click="fetchData">
+                    <span v-if="isLoading" class="spinner-border spinner-border-sm" role="status"
+                        aria-hidden="true"></span>
+                    Inspect variant
+                </button>
+            </div>
+        </div>
+
+        <!-- Two Card Elements Side by Side -->
+        <div class="row mt-2 px-4">
+            <div class="col-md-6">
+                <div class="alert alert-danger" role="alert" v-if="ensembl_error">
+                    {{ ensembl_error }}
+                </div>
+
+                <h1><span class="badge bg-secondary">Ensembl</span></h1>
+
+                <dl class="row">
+                    <div v-for="(value, key) in ensembl_response" :key="key">
+                        <dt class="col-md-12 py-2">{{ key }}</dt>
+                        <dd class="col-md-12 my-3">
+                            <ul>
+                                <span v-for="item in value">
+                                    <li>{{ item }}</li>
+                                </span>
+                            </ul>
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+
+            <div class="col-md-6">
+                <div class="alert alert-danger" role="alert" v-if="vv_error">
+                    {{ vv_error }}
+                </div>
+
+                <h1><span class="badge bg-secondary">VariantValidator</span></h1>
+                <div v-if="vv_response">
+                    <dl class="row">
+                        <dt class="col-md-12 py-2">Gene Information</dt>
+                        <dd class="col-md-12 my-2">
+                            <ul>
+                                <li><strong>Chromosome:</strong> {{ vv_response.annotations.chromosome }}</li>
+                                <li><strong>Gene Symbol:</strong> {{ vv_response.gene_symbol }}</li>
+                                <li><strong>Note:</strong> {{ vv_response.annotations.note }}</li>
+                            </ul>
+                        </dd>
+                    </dl>
+
+                    <dl class="row">
+                        <div v-for="(value, assembly) in vv_response.primary_assembly_loci" :key="assembly">
+                            <dt class="col-md-12 py-2">VCF ({{ assembly }})</dt>
+                            <dd class="col-md-12 my-2">
+                            {{ value.vcf.chr }}-{{ value.vcf.pos }}-{{ value.vcf.ref }}-{{ value.vcf.alt }}
+                            </dd>
+                        </div>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Vue.js 3 script from CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- https://cdn.jsdelivr.net/npm/vue@3.3.11/dist/vue.global.min.js -->
+
+    <!-- Optional: Add Bootstrap JavaScript from CDN if you plan to use Bootstrap components that require it -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
+
+    <!-- Your custom JavaScript code or Vue.js components can be included below this line -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <script>
+        const { createApp, ref } = Vue
+
+        createApp({
+            setup() {
+                const inputVariant = ref('')
+                const ensembl_response = ref(null) // { "spdi": ["NC_000002.12:29065071:C:T"], "vcf_string": ["2-29065072-C-T"], "hgvsc": ["ENST00000331664.6:c.3669-5G>A", "NM_001029883.3:c.3669-5G>A"], "hgvsg": ["NC_000002.12:g.29065072C>T"], "id": ["rs886055920", "COSV105895382"] }
+                const ensembl_error = ref(null)
+                const vv_response = ref(null) // { "alt_genomic_loci": [], "annotations": { "chromosome": "2", "db_xref": { "CCDS": "CCDS42669.1", "ensemblgene": null, "hgnc": "HGNC:34383", "ncbigene": "388939", "select": "MANE" }, "ensembl_select": false, "mane_plus_clinical": false, "mane_select": true, "map": "2p23.2", "note": "photoreceptor cilium actin regulator", "refseq_select": true, "variant": "0" }, "gene_ids": { "ccds_ids": ["CCDS42669"], "ensembl_gene_id": "ENSG00000179270", "entrez_gene_id": "388939", "hgnc_id": "HGNC:34383", "omim_id": ["613425"], "ucsc_id": "uc002rmt.3" }, "gene_symbol": "PCARE", "genome_context_intronic_sequence": "NC_000002.12(NM_001029883.3):c.3669-5G>A", "hgvs_lrg_transcript_variant": "", "hgvs_lrg_variant": "", "hgvs_predicted_protein_consequence": { "lrg_slr": "", "lrg_tlr": "", "slr": "NP_001025054.1:p.?", "tlr": "NP_001025054.1:p.?" }, "hgvs_refseqgene_variant": "NG_021427.1:g.14190G>A", "hgvs_transcript_variant": "NM_001029883.3:c.3669-5G>A", "primary_assembly_loci": { "grch37": { "hgvs_genomic_description": "NC_000002.11:g.29287938C>T", "vcf": { "alt": "T", "chr": "2", "pos": "29287938", "ref": "C" } }, "grch38": { "hgvs_genomic_description": "NC_000002.12:g.29065072C>T", "vcf": { "alt": "T", "chr": "2", "pos": "29065072", "ref": "C" } }, "hg19": { "hgvs_genomic_description": "NC_000002.11:g.29287938C>T", "vcf": { "alt": "T", "chr": "chr2", "pos": "29287938", "ref": "C" } }, "hg38": { "hgvs_genomic_description": "NC_000002.12:g.29065072C>T", "vcf": { "alt": "T", "chr": "chr2", "pos": "29065072", "ref": "C" } } }, "reference_sequence_records": { "protein": "https://www.ncbi.nlm.nih.gov/nuccore/NP_001025054.1", "refseqgene": "https://www.ncbi.nlm.nih.gov/nuccore/NG_021427.1", "transcript": "https://www.ncbi.nlm.nih.gov/nuccore/NM_001029883.3" }, "refseqgene_context_intronic_sequence": "NG_021427.1(NM_001029883.3):c.3669-5G>A", "rna_variant_descriptions": null, "selected_assembly": "GRCh38", "submitted_variant": "NM_001029883.3:c.3669-5G>A", "transcript_description": "Homo sapiens photoreceptor cilium actin regulator (PCARE), mRNA", "validation_warnings": [], "variant_exonic_positions": { "NC_000002.11": { "end_exon": "1i", "start_exon": "1i" }, "NC_000002.12": { "end_exon": "1i", "start_exon": "1i" }, "NG_021427.1": { "end_exon": "1i", "start_exon": "1i" } } }
+                const vv_error = ref(null)
+                const isLoading = ref(false)
+
+                const fetchEnsemblData = async () => {
+                    try {
+                        console.log("Calling Enembl")
+                        const response = await axios.get(`https://rest.ensembl.org/variant_recoder/human/${inputVariant.value}?vcf_string=1`, {
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        });
+
+                        // Assuming your data is stored in an array, and you want to access the first element
+                        const firstElement = response.data[0];
+
+                        // Find the key that contains the "hgvsc" array
+                        let hgvscArray = null;
+                        for (const key in firstElement) {
+                            if (firstElement.hasOwnProperty(key) && Array.isArray(firstElement[key].hgvsc)) {
+                                delete firstElement[key].input;
+                                ensembl_response.value = firstElement[key];
+                                break; // Exit the loop once the "hgvsc" array is found
+                            }
+                        }
+                    } catch (error) {
+                        if (error.code == "ERR_NETWORK") {
+                            console.error('Network error - URL:', error.config.url);
+                            ensembl_error.value = 'Network error - URL: ' + error.config.url;
+                        } else {
+                            console.error('Failed to fetch Ensembl data:', error);
+                            ensembl_error.value = error.response.data.error;
+                        }
+                    }
+                }
+
+                const fetchVariantValidatorData = async () => {
+                    try {
+                        const response = await axios.get(`https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh38/${inputVariant.value}/select`, {
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        vv_response.value = response.data;
+
+                        if (vv_response.value.flag == 'warning') {
+                            vv_error.value = vv_response.value.validation_warning_1.validation_warnings;
+                            vv_response.value = null;
+                        } else {
+                            // Assuming your data is stored in an array, and you want to access the first element
+                            const firstElement = vv_response.value;
+
+                            // Find the key that contains the "hgvsc" array
+                            let hgvscArray = null;
+                            for (const key in firstElement) {
+                                if (firstElement.hasOwnProperty(key) && Array.isArray(firstElement[key].alt_genomic_loci)) {
+                                    vv_response.value = firstElement[key];
+                                    break; // Exit the loop once the "hgvsc" array is found
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        if (error.code == "ERR_NETWORK") {
+                            console.error('Network error - URL:', error.config.url);
+                            vv_error.value = 'Network error - URL: ' + error.config.url;
+                        } else {
+                            console.error('Failed to fetch Ensembl data:', error);
+                            vv_error.value = error.response.data.error;
+                        }
+                    }
+                }
+
+                const fetchData = async () => {
+                    isLoading.value = true;
+                    ensembl_response.value = null;
+                    vv_response.value = null;
+                    ensembl_error.value = null;
+                    vv_error.value = null;
+
+                    try {
+                        // Use Promise.all to await both fetchEnsemblData and fetchVariantValidatorData
+                        await Promise.all([fetchEnsemblData(), fetchVariantValidatorData()]);
+                    } finally {
+                        isLoading.value = false; // Set isLoading to false after both fetches complete
+                    }
+                }
+
+                return {
+                    inputVariant,
+                    ensembl_response,
+                    ensembl_error,
+                    vv_response,
+                    vv_error,
+                    isLoading,
+                    fetchEnsemblData,
+                    fetchVariantValidatorData,
+                    fetchData
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+
+</html>
